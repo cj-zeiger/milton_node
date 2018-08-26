@@ -4,28 +4,31 @@ const promisify = util.promisify
 const PlayMusic = require('playmusic')
 const fs = require("fs")
 const nodeCleanup = require('node-cleanup');
-//const opus = require('node-opus');
 const spawn = require('child_process').spawn;
 const axios = require('axios')
 const streams = require('memory-streams')
 const logger = require('./logger')
 const server = require('./server')
+var Raven = require('raven');
 const client = new Discord.Client()
 var pm = new PlayMusic();
-
-
 
 const token = process.env.MILTON_KEY
 const device_id = process.env.MILTON_DEVICE_ID
 const google_app_password = process.env.MILTON_APP_PASSWORD
 const google_email = process.env.MILTON_GOOGLE_EMAIL
-
+const owner_id = process.env.MILTON_OWNER_ID
+const master_token = process.env.MILTON_MASTER_TOKEN
+const master_test = process.env.MILTON_MASTER_TEST
+Raven.config('https://f4b741fbf8db40698c73cf4c4b76fd11@sentry.io/1198835').install();
 
 var register_voice_channel
 var register_text_channel
 var is_registerd = false
 var register_connection
 var library_art_map = null
+
+var timeoutFunction
 
 function to_async(call_back_function, params) {
     return new Promise((good, bad) => {
@@ -38,10 +41,19 @@ function to_async(call_back_function, params) {
 
 function login_to_google_music() {
     return new Promise((good, bad) => {
-        pm.login({email: google_email, password: google_app_password, androidId: device_id}, (err, res) => {
-            if (err) { bad(err); return; }
-            pm.init({androidId: device_id, masterToken: res['masterToken']}, (err) => {
+        //good()
+        //pm.init({androidId: device_id, masterToken: master_test}
+        pm.login({email: "cjzeiger@gmail.com", password: master_test, androidId: device_id}, (err, resp) => {
+         //pm.init({androidId: device_id, masterToken: "nxbcmyoyspvgmwdl"}, (err) => {
+        //pm.login({email: "cjzeiger@gmail.com", password: master_test, androidId: device_id}, (err, resp) => {
+            if (err) {
+                Raven.captureException(err)
+                bad(err)
+                return
+            }
+            pm.init( {email: 'cjzeiger@gmail.com', androidId: device_id, masterToken: resp.masterToken }, (err) => {
                 if (err) {
+                    Raven.captureException(err)
                     bad(err)
                     return
                 }
@@ -83,6 +95,7 @@ async function register(msg) {
     }
     
     connection.on('error', (err) => {
+        Raven.captureException(err)
         logger.error("VoiceConnection error %s", err)
     })
     
@@ -155,10 +168,39 @@ async function fetch_art_if_any(id, title, artist) {
         })
     })
 }
+
+function startTimeoutFunction() {
+    if (timeoutFunction) {
+        clearTimeout(timeoutFunction);
+    }
+    
+    let timeout =  30 * 60 * 1000
+    
+    timeoutFunction = setTimeout(() => {
+        if (register_text_channel) {
+            logger.info("Time between requests timed out, unregistering")
+            register_text_channel.send("There were no new play requests for 30 minute, unregistering myself")
+            register_text_channel = null
+        }
+        
+        
+        if (register_voice_channel) {
+            register_voice_channel.leave()
+            
+        }
+        
+        register_voice_channel = null
+        register_connection = null
+        is_registerd = false
+        client.user.setPresence({game: { name: 'Making Toast' }, status: 'idle'})
+    }, timeout)
+}
+
 async function play_id(id, title, artist, duration) {
+    
     if (!is_registerd || !register_text_channel) {
         // Can't do anything, don't even have a text channel
-        logger.error('Played called without a text channel or is_registerd')
+        logger.info('Played called without a text channel or is_registerd')
         return
     }
     
@@ -181,17 +223,18 @@ async function play_id(id, title, artist, duration) {
             })
         }
     }
-    
+    startTimeoutFunction()
     let art_url = await fetch_art_if_any(id, title, artist)
     var music_buffer
     try {
         let url = await new Promise((good, bad) => {
             pm.getStreamUrl(id, function(err, streamUrl) {
                 if (err) {
+                    Raven.captureException(err)
                     logger.error("Error getting stream url %s", err)
                     bad(err)
                 }
-                logger.info('Got stream url %s for id %s', streamUrl, id)
+                logger.info('Got stream url id %s', id)
                 good(streamUrl)
             })
         })
@@ -206,6 +249,7 @@ async function play_id(id, title, artist, duration) {
         passes: 10,
         bitrate: 'auto'
     })
+    /**
     const ffmpeg = spawn('ffmpeg', [
 				'-i', './tmp.mp3',
 				'-vn',
@@ -219,8 +263,17 @@ async function play_id(id, title, artist, duration) {
 				'-b:a', 64000,  // Bitrate
 				'pipe:1' // Output to stdout
 			]);
-	//let dispatcher = register_connection.playOpusStream(ffmpeg.stdout, {bitrate: 64000});
-    dispatcher.on('error', (err) => logger.error('Voice Dispatcher error %s', err))
+	let dispatcher = register_connection.playOpusStream(ffmpeg.stdout, {bitrate: 64000});
+	**/
+    dispatcher.on('error', (err) => {
+        Raven.captureException(err)
+        logger.error('Voice Dispatcher error %s', err)
+        client.user.setPresence({game: { name: 'Waiting ...' }, status: 'idle'})
+    })
+    dispatcher.on('end', (reason) => {
+        logger.verbose("StreamDispatcher end Event, reason: %s", reason)
+        client.user.setPresence({game: { name: 'Waiting ...' }, status: 'idle'})
+    })
    
     let min_float = duration / 60000
     let m ="Duration: ("+parseInt(min_float) + "m " + parseInt((min_float - parseInt(min_float)) * 60) + "s)"
@@ -246,7 +299,9 @@ async function play_id(id, title, artist, duration) {
        embed.embed.thumbnail = { url: art_url }
     } 
     register_text_channel.send(embed)
-    
+    client.user.setPresence({ game: { name: 'Playing ' + title }, status: 'online' })
+        .then(logger.verbose)
+        .catch(logger.error);
     logger.info("Playing " + title + " by " + artist + " ("+parseInt(min_float) + "m " + parseInt((min_float - parseInt(min_float)) * 60) + "s)")
     
 }
@@ -259,10 +314,15 @@ async function build_art_map() {
                 return
             }
             let allTracks = data.data.items
+            if (!allTracks) {
+                logger.error("getAllTracks is empty, this is wrong")
+                good({})
+                return
+            }
             allTracks.filter( function(track) {
                 return typeof track.storeId === "undefined" 
             })
-            let map = new Object()
+            let map = {}
             for (var i = 0; i < allTracks.length; i++) {
                 let track = allTracks[i]
                 let art_id = track.albumArtRef[0].url
@@ -277,22 +337,53 @@ async function build_art_map() {
 }
 
 client.on('ready', () => {
+    //get_master_token()
   logger.info(`Logged in as ${client.user.tag}!`);
   serv.start(serv)
 });
 
 client.on('message', msg => {
-  if (msg.content === '!register') {
-    register(msg).catch((err) => logger.error(err))
+    if (msg.content === '!register') {
+        register(msg).catch((err) => logger.error(err))
+    }
+});
+
+const clean = text => {
+  if (typeof(text) === "string")
+    return text.replace(/`/g, "`" + String.fromCharCode(8203)).replace(/@/g, "@" + String.fromCharCode(8203));
+  else
+      return text;
+}
+
+client.on("message", message => {
+  const args = message.content.split(" ").slice(1);
+
+  if (message.content.startsWith("!eval")) {
+    if(message.author.id !== owner_id) return;
+    try {
+      const code = args.join(" ");
+      let evaled = eval(code);
+
+      if (typeof evaled !== "string")
+        evaled = require("util").inspect(evaled);
+
+      message.channel.send(clean(evaled), {code:"xl"});
+    } catch (err) {
+      message.channel.send(`\`ERROR\` \`\`\`xl\n${clean(err)}\n\`\`\``);
+    }
   }
 });
 
 function connection(id, artist, title, duration) {
+    try {
     play_id(id, artist, title, duration)
         .then((r) => logger.verbose("forwarded request from server"))
         .catch((err) => {
             logger.error("Saftey catch of play_id() %s", err)
         })
+    } catch (err) {
+        logger.error('unhandled promise excaption in play_id\n %s', err)
+    }
 }
 let serv = server.init({
     play: function (id, artist, title, duration) {
@@ -311,6 +402,7 @@ let banner =
 logger.info(banner)
 
 login_to_google_music().then(async function(res) {
+    logger.info(res)
     try {
         library_art_map = await build_art_map()
     } catch (err) {
@@ -318,7 +410,7 @@ login_to_google_music().then(async function(res) {
     }
     return res
     }).then((res) => {
-        logger.info(res)
+        
         client.login(token);
 })
 

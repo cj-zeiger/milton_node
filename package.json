@@ -18,6 +18,7 @@
     "node-cleanup": "^2.1.2",
     "node-opus": "^0.2.7",
     "playmusic": "^2.3.0",
+    "raven": "^2.6.0",
     "uws": "^9.148.0",
     "winston": "^3.0.0-rc5"
   }
