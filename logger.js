@@ -1,4 +1,4 @@
-const winston = require('winston')
+const winston = require('winston');
 
 const logger = winston.createLogger({
     format: winston.format.combine(
@@ -18,4 +18,4 @@ const logger = winston.createLogger({
   ]
 });
 
-module.exports = logger
+module.exports = logger;

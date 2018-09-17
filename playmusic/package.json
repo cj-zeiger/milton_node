@@ -1,0 +1,59 @@
+{
+  "_from": "playmusic",
+  "_id": "playmusic@2.3.0",
+  "_inBundle": false,
+  "_integrity": "sha512-GMraEFE9zJ5otm0Vx9tPoE0EpA8vriiGXKofjRy71akZ7f1clo1NROHWoC+jSP42GN6d21z60SpqGhkamJHWfA==",
+  "_location": "/playmusic",
+  "_phantomChildren": {},
+  "_requested": {
+    "type": "tag",
+    "registry": true,
+    "raw": "playmusic",
+    "name": "playmusic",
+    "escapedName": "playmusic",
+    "rawSpec": "",
+    "saveSpec": null,
+    "fetchSpec": "latest"
+  },
+  "_requiredBy": [
+    "#USER",
+    "/"
+  ],
+  "_resolved": "https://registry.npmjs.org/playmusic/-/playmusic-2.3.0.tgz",
+  "_shasum": "15ef53093f0b409b29d0acd0835f7b5088366ca6",
+  "_spec": "playmusic",
+  "_where": "/home/ec2-user/milton_node",
+  "author": {
+    "name": "Jamon Terrell",
+    "email": "playmusic@jamonterrell.com",
+    "url": "https://github.com/jamon/"
+  },
+  "bugs": {
+    "url": "https://github.com/jamon/playmusic/issues",
+    "email": "playmusic@jamonterrell.com"
+  },
+  "bundleDependencies": false,
+  "dependencies": {
+    "crypto-js": ">= 3.1",
+    "node-uuid": "~1.4.1",
+    "rsa-pem-from-mod-exp": "^0.8.4"
+  },
+  "deprecated": false,
+  "description": "Node JS Google Play Music API.  Supports All Access",
+  "homepage": "https://www.github.com/jamon/playmusic",
+  "keywords": [
+    "gmusic",
+    "gmusicapi",
+    "google play",
+    "play music",
+    "all access"
+  ],
+  "license": "MPL-2.0",
+  "main": "play",
+  "name": "playmusic",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jamon/playmusic.git"
+  },
+  "version": "2.3.0"
+}
