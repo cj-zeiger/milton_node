@@ -1,0 +1,1 @@
+docker-machine create --driver amazonec2 --amazonec2-instance-type t2.nano --amazonec2-region us-east-1 --amazonec2-subnet-id subnet-22d11455 --amazonec2-vpc-id vpc-2970d54c milton
