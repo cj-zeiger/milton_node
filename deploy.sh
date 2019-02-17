@@ -1,4 +1,4 @@
-pkill -f app.js
+pkill -f app_old.js
 cd ~/milton_node
 npm install
 rm nohup.out

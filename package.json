@@ -5,7 +5,8 @@
   "main": "app.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "node $NODE_DEBUG_OPTION ./app.js"
+    "dev": "node ./app.js",
+    "devDebug": "node %NODE_DEBUG_OPTION% ./app.js"
   },
   "author": "CJ",
   "license": "ISC",

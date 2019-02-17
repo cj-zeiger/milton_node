@@ -1,6 +1,5 @@
 const express = require('express');
 const util = require("util");
-const logger = require('./logger');
 const body_parser = require('body-parser');
 const app = express();
 const http = require("http");
@@ -19,20 +18,14 @@ const getApiAndEmit = async socket => {
         const res = get_state === null ? {} : get_state();
         socket.emit("FromAPI", res); // Emitting a new message. It will be consumed by the client
     } catch (error) {
-        logger.error(`Error: ${error.code}`);
+        console.log(`Error: ${error.code}`);
     }
 };
-
-function set_player(p) {
-    player = p;
-    pm = p.pm;
-    get_state = p.player_state
-}
 
 io.on("connection", socket => {
     console.log("New client connected");
     setInterval(() => getApiAndEmit(socket),
-        1000
+        2000
     );
     socket.on("disconnect", () => console.log("Client disconnected"));
 });
@@ -45,15 +38,47 @@ app.use(function(req, res, next) {
 app.use(body_parser.json());
 app.post('/', (req, res) => {
     let r = req.body;
-    logger.info('POST /control\n %s', util.inspect(r));
+    console.log('POST /control\n %s', util.inspect(r));
     player.play(r["id"], r["title"], r["artist"], r["duration"]);
     res.send("OK")
+});
+
+app.post('/play/song', async (req, res) => {
+    let r = req.body;
+    console.log('POST /play/song\n %s', util.inspect(r));
+    await player.play_song(r['nid'], r['storeId']);
+    return res.send("OK")
+});
+
+app.post('/play/album', async (req, res) => {
+   let r = req.body;
+   console.log('POST /play/album\n %s', util.inspect(r));
+   await player.play_album(r['albumId'], r['startWith']);
+   return res.send("OK");
+});
+
+app.post('/control/skip', async (req, res) => {
+   console.log('POST /control/skip');
+   await player.skip();
+   return res.send("OK");
+});
+
+app.post('/control/previous', async (req, res) => {
+    console.log('POST /control/previous');
+    await player.previous();
+    return res.send("OK");
+});
+
+app.post('/control/pause', async (req, res) => {
+    console.log('POST /control/pause');
+    await player.pause();
+    return res.send("OK");
 });
 
 app.get('/search/:query', (req, res) => {
     let params = req.params;
 
-    logger.info('GET /search\n %s', util.inspect(params));
+    console.log('GET /search\n %s', util.inspect(params));
     pm.search(params['query'], 20, (err, data)=> {
         if (err) {
             res.send('%s' % (err), 500);
@@ -70,11 +95,22 @@ app.get('/search/:query', (req, res) => {
     })
 });
 
+app.get('/album/:id', async (req, res) => {
+    let params = req.params;
+    console.log('GET /album\n%s', util.inspect(params));
+    try {
+        let results = await player.get_album(params['id']);
+        res.send(results);
+    } catch (err) {
+        res.status(500).send("Internal Server Error")
+    }
+});
+
 function start_serv() {
     app.listen(8080, () => {
-        logger.info("Sync server listening on port 8080")
+        console.log("Sync server listening on port 8080")
     });
-    server.listen(8081, () => logger.info("Listening for sockets on 8081"));
+    server.listen(8081, () => console.log("Listening for sockets on 8081"));
 
 }
 
@@ -85,6 +121,12 @@ function init(p) {
             start_serv()
         }
     }
+}
+
+function set_player(p) {
+    player = p;
+    pm = p.pm;
+    get_state = p.player_state
 }
 
 module.exports = { init };
